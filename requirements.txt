@@ -3,4 +3,5 @@ matplotlib
 pytest
 scipy
 jax[cuda12]
-
+numba
+pydantic
