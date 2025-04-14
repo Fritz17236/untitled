@@ -21,6 +21,20 @@ from numpy.typing import NDArray
 class RegressorType(Enum):
     HUBER = HuberRegressor
 
+def flatten_depth_width(activations: NDArray, config: RegressionParams) -> NDArray:
+    """Flatten the width and depth of an array of activations, 3D --> 2D
+
+    Args:
+        activations (NDArray): Neural activation array having shape [DEPTH] x [WIDTH] x [NUM_SAMPLES]
+        config (RegressionParams): Parameters for regression, containing width and depth configuration for the network.
+
+    Returns:
+        NDArray: Flattened array of activations with shape ([DEPTH] * [WIDTH]) x [NUM_SAMPLES]
+    """
+    width, depth, num_samples = activations.shape
+    return activations.reshape(
+        (depth * width, num_samples), order=config.flatten_order.value
+    )
 
 def compute_decoder(
     activations: NDArray[np.floating],
@@ -65,12 +79,10 @@ def compute_decoder(
         )
 
     # flatten according to configuration
-    acts_flat = activations.reshape(
-        (act_depth * act_width, num_samples), order=config.flatten_order.value
-    )
+    acts_flat = flatten_depth_width(activations, config)
 
     # fit huber model (or logic to match model enum)
-    huber = regressor.value().fit(activations, target_output)
+    huber = regressor.value().fit(acts_flat, target_output)
 
     # get coeffs and sanity check they are correct shape
     coeffs = huber.coef_

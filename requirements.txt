@@ -3,8 +3,9 @@ matplotlib
 pytest
 scipy
 scikit-learn
-jax[cuda12]
-numba
+# jax[cuda12]
+# numba
 pydantic
 black
 autoflake
+tqdm

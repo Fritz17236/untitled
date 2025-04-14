@@ -12,6 +12,7 @@ __email__ = "fritz17236@hotmail.com"
 
 
 from enum import Enum
+from functools import partial
 import numpy as np
 from numpy.typing import NDArray
 
@@ -66,9 +67,9 @@ def tent(x: NDArray[np.floating], params: TentParams) -> NDArray[np.floating]:
 
 
 class TransformType(Enum):
-    LOGISTIC = logistic
-    GAUSS = gauss
-    TENT = tent
+    LOGISTIC = partial(logistic)
+    GAUSS = partial(gauss)
+    TENT = partial(tent)
 
 
 def compute_activations(
