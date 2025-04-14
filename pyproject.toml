@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools >= 77.0.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "untitled"
+version = "0.0.1"
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "pytest",
+    "scipy",
+    "scikit-learn",
+    "jax[cuda12]",
+    "numba",
+    "pydantic",
+    "black",
+    "flake"
+]
+
+requires-python = ">=3.11"
+authors = [
+  {name = "Chris Fritz", email = "fritz17236@hotmail.com"},
+]
+
+description = "Lovely Spam! Wonderful Spam!"
+license = "MIT"
+license-files = ["LICEN[CS]E.*"]
+readme = "README.rst"

@@ -1,22 +1,36 @@
 """
 params.py: Configuration Parameters for nonlinear manifold regression.
 """
+
+from __future__ import annotations
+
 __author__ = "Chris Fritz"
 __email__ = "fritz17236@hotmail.com"
 
 from pydantic import BaseModel
 from enum import Enum
+from activations import TransformType
 
-class TransformType(Enum):
-    LOGISTIC = 1
-    GAUSS = 2
-    TENT = 3
-    
+
+# Note that the ‘C’ and ‘F’ options take no account of the memory layout of the underlying array, and only refer to the order of indexing.
+class FlattenOrder(Enum):
+    """Read the elements of a using this index order, and place the elements into the reshaped array using this index order
+
+    ‘C’ means to read / write the elements using C-like index order, with the last axis index changing fastest, back to the first axis index changing slowest.
+
+    ‘F’ means to read / write the elements using Fortran-like index order, with the first index changing fastest, and the last index changing slowest.
+
+    'A' means to read / write the elements in Fortran-like index order if a is Fortran contiguous in memory, C-like order otherwise.
+    """
+
+    C_STYLE = "C"
+    FORTRAN_STYLE = "F"
+    AUTO = "A"
+
 
 class NonlinearTransformationParams(BaseModel, frozen=True):
-    """Base Class for Nonlinear Parameters
-    """
-    pass
+    """Base Class for Nonlinear Parameters"""
+
 
 class LogisticParams(NonlinearTransformationParams, frozen=True):
     """Parameters for the logistic  map nonlinear transformation
@@ -24,8 +38,9 @@ class LogisticParams(NonlinearTransformationParams, frozen=True):
     Attributes:
         r (float): "Reproduction" value for the logistic map, typically betwen 0 and 4, with 4 being  the upper boundary of Chaotic behavior.
     """
+
     r: float
-    
+
 
 class GaussParams(NonlinearTransformationParams, frozen=True):
     """Parameters for the Gaussian Step Map
@@ -34,34 +49,40 @@ class GaussParams(NonlinearTransformationParams, frozen=True):
         alpha (float): The value that scales inside the exponential.  term fo the Gaussian function.
         beta (float): The value that offsets outside the exponentail term of the Gaussian function
     """
+
     alpha: float
     beta: float
+
 
 class TentParams(NonlinearTransformationParams, frozen=True):
     """Parameters for the Tent Map
     https://en.wikipedia.org/wiki/Tent_map
     Attributes:
-        mu (float): The slope of the tent / triangle, typically between 0 and 2, with 2 being the upper boundary of bounded Chaotic behavior. 
+        mu (float): The slope of the tent / triangle, typically between 0 and 2, with 2 being the upper boundary of bounded Chaotic behavior.
     """
-    mu: float 
+
+    mu: float
+
 
 class RegressionParams(BaseModel, frozen=True):
     """
     Parameters for a nonlinear regression network approximator.
-    
+
     Attributes:
         width (int): The number of neurons in the network (i.e. the width of the network)
         depth (int): The number of layers of the network (i.e. the depth of the network)
         input_dimension (int): The dimension of the data vectors we input to the network
+        output_dimension (int): The dimension of the data vectors we expect the network to output
         transform_type (TransformType): The type of nonlinear transformation to use between layers
-        transform_params (NonlinearTransformationParams): The parameters for the nonlinear transformation. 
-         
+        transform_params (NonlinearTransformationParams): The parameters for the nonlinear transformation.
+        flatten_order (FlattenOrder): How to flatten the width and depth dimensions into 1 using numpy.reshape, using either 'C' or 'Fortran' style reading.
+
     """
+
     width: int
-    depth: int 
-    input_dimension: int 
+    depth: int
+    input_dimension: int
+    output_dimension: int
     transform_type: TransformType
     transform_params: NonlinearTransformationParams
-    
-    
-    
+    flatten_order: FlattenOrder
