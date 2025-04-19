@@ -9,7 +9,7 @@ __email__ = "fritz17236@hotmail.com"
 
 from pydantic import BaseModel
 from enum import Enum
-from activations import TransformType
+from .activations import TransformType
 
 
 # Note that the ‘C’ and ‘F’ options take no account of the memory layout of the underlying array, and only refer to the order of indexing.
@@ -75,7 +75,6 @@ class RegressionParams(BaseModel, frozen=True):
         output_dimension (int): The dimension of the data vectors we expect the network to output
         transform_type (TransformType): The type of nonlinear transformation to use between layers
         transform_params (NonlinearTransformationParams): The parameters for the nonlinear transformation.
-        flatten_order (FlattenOrder): How to flatten the width and depth dimensions into 1 using numpy.reshape, using either 'C' or 'Fortran' style reading.
 
     """
 
@@ -85,4 +84,3 @@ class RegressionParams(BaseModel, frozen=True):
     output_dimension: int
     transform_type: TransformType
     transform_params: NonlinearTransformationParams
-    flatten_order: FlattenOrder

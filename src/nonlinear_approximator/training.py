@@ -18,7 +18,7 @@ import os
 import tqdm
 import numpy as np
 from numpy.typing import NDArray
-import params
+from . import params
 
 
 class RegressorType(Enum):

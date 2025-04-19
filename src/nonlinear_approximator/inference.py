@@ -12,9 +12,9 @@ import multiprocessing as mp
 import os
 import numpy as np
 import tqdm
-from params import RegressionParams
+from .params import RegressionParams
 from numpy.typing import NDArray
-from activations import compute_activations
+from .activations import compute_activations
 
 
 def infer(

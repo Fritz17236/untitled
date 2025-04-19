@@ -1,4 +1,5 @@
-import activations as activations
-import inference as inference
-import params as params
-import training as training
+from . import activations as activations
+from . import inference as inference
+from . import model as model
+from . import params as params
+from . import training as training
