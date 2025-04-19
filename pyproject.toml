@@ -14,15 +14,18 @@ version = "0.0.1"
 dependencies = [
     "numpy",
     "matplotlib",
-    "pytest",
     "scipy",
     "scikit-learn",
     "torch",
     "torchvision",
     "pydantic",
-    "flake8", 
-    "black",
-    "autoflake",
     "tqdm",
     "cvxpy",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "autoflake",
+    "pytest",
 ]

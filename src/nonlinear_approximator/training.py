@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from params import RegressionParams
+    pass
 
 __author__ = "Chris Fritz"
 __email__ = "fritz17236@hotmail.com"
