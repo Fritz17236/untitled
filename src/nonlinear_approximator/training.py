@@ -13,52 +13,51 @@ __email__ = "fritz17236@hotmail.com"
 
 
 from enum import Enum
+import multiprocessing as mp
+import os
+import tqdm
 import numpy as np
 from numpy.typing import NDArray
-import cvxpy as cp
+import params
 
 
 class RegressorType(Enum):
     HUBER = None
 
-def flatten_depth_width(activations: NDArray, config: RegressionParams) -> NDArray:
-    """Flatten the width and depth of an array of activations, 3D --> 2D
+
+def _regress_neuron(
+    acts: NDArray[np.floating], target_outputs: NDArray[np.floating]
+) -> NDArray[np.floating]:
+    """Regress a given neuron's activations onto the provided target output.
 
     Args:
-        activations (NDArray): Neural activation array having shape [DEPTH] x [WIDTH] x [NUM_SAMPLES]
-        config (RegressionParams): Parameters for regression, containing width and depth configuration for the network.
+        acts (NDArray[np.floating]): The neuron's activations for the provied sample data, having shape [NUM_SAMPLES] x [DEPTH]
+        target_outputs (NDArray[np.floating]): The target outputs the neuron should be mapped to having shape [NUM_SAMPLES] x [OUTPUT_DIM]
 
     Returns:
-        NDArray: Flattened array of activations with shape ([DEPTH] * [WIDTH]) x [NUM_SAMPLES]
+        NDArray[np.floating]: The regression coefficients that map the neuron's output to target output having shape [DEPTH] x [OUTPUT_DIM]
     """
-    width, depth, num_samples = activations.shape
-    res = activations.reshape(
-        (depth * width, num_samples), order=config.flatten_order.value
-    )
-    assert res.shape == (width * depth, num_samples)
-    return res
+    return np.linalg.lstsq(acts, target_outputs, rcond=None)[0]
 
-def compute_decoder(
+
+def compute_decoders(
     activations: NDArray[np.floating],
     target_output: NDArray[np.floating],
-    config: RegressionParams,
-    regressor: RegressorType = RegressorType.HUBER,
+    config: params.RegressionParams,
 ) -> NDArray[np.floating]:
-    """Generate a decoder matrix by fitting a linear regression model mapping neural activations to desired function output.
+    """Compute the decoders that map activations associated with target input to the target output
 
     Args:
-        activations (NDArray[np.floating]): Neural activation array having shape [DEPTH] x [WIDTH] x [NUM_SAMPLES]
-        target_output (NDArray[np.floating]): Desired output functions having shape [OUPUT_DIMENSION] x [NUM_SAMPLES]
-        config (RegressionParams): Parameters for regression, containing width and depth configuration for the network.
-        regressor (RegressorType, optional): Regression function to use. Defaults to HuberRegressor.
+        activations (NDArray[np.floating]): Activations associated with target input having shape [DEPTH] x [WIDTH] x [NUM_SAMPLES]
+        target_output (NDArray[np.floating]): The target output to regress against, having shape [NUM_SAMPLES] x [OUTPUT_DIMENSION]
+        config (params.RegressionParams): The regression configuration specifying, width, and depth.
 
     Returns:
-        NDArray[np.floating]: _description_
+        NDArray[np.floating]: Decoder matrix for each neuron having shape [DEPTH] x [OUTPUT_DIMENSION] x [WIDTH]
     """
-
     # sanity check activations and target output match what is contained in config
     act_depth, act_width, act_num_samples = activations.shape
-    output_dim, num_samples = target_output.shape
+    num_samples, output_dim = target_output.shape
 
     if not act_depth == config.depth:
         raise ValueError(
@@ -80,35 +79,50 @@ def compute_decoder(
             f"Mismatch between provided activations with sample count dimension (2) = {act_depth} and target outputs with sample count {num_samples}"
         )
 
-    # flatten according to configuration
-    acts_flat = flatten_depth_width(activations, config)
-    # A          x     =    Y
-    # [S x DW][DW x Y] = [S x Y]
-    # ==
-    # X          A     =   Y
-    # [Y x DW][DW x S] = [Y x S]
-    X = cp.Variable((config.width * config.depth, config.output_dimension))
-    cost = cp.sum_squares(one_vec.T @ (acts_flat.T @ X - target_output.T))  # + .001 * cp.pnorm(X, p=1)**2
-    prob = cp.Problem(cp.Minimize(cost))
-    prob.get_problem_data
-    res = prob.solve()
-    
-    if X.value is not None:
-        print(f"Solved least squares problem with {res=}")
-        coeffs = X.value.T
-    else:
-        raise RuntimeError(f"Could not solve least squares equations: {res=}")
-    
-    # get coeffs and sanity check they are correct shape
-    dim0, dim1 = coeffs.shape
-    if not dim0 == output_dim:
-        raise RuntimeError(
-            f"Computed decoder matrix has invalid shape: Target output dimension = {output_dim}; dim0 of decoder matrix = {dim0}"
+    # multiprocessing to perform regression on per-neuron basis
+    cpu_count = mp.cpu_count()
+    if len(os.sched_getaffinity(0)) < cpu_count:
+        try:
+            os.sched_setaffinity(0, range(cpu_count))
+        except OSError:
+            print("Could not set affinity")
+    num_worker_procs = len(os.sched_getaffinity(0))
+
+    with mp.Pool(num_worker_procs) as p:
+        decoders = np.stack(
+            *[
+                p.starmap(
+                    func=_regress_neuron,
+                    iterable=tqdm.tqdm(
+                        [
+                            (
+                                activations[:, idx_neuron, :].T,
+                                target_output,
+                            )
+                            for idx_neuron in range(config.width)
+                        ],
+                        total=config.width,
+                    ),
+                )
+            ],
+            axis=-1,
         )
 
-    if not dim1 == act_depth * act_width:
+    # confirm correct shape output
+    dim0, dim1, dim2 = decoders.shape
+    if not dim0 == act_depth:
         raise RuntimeError(
-            f"Computed decoder matrix has invalid shape: Target flattend depth*width dimension = {act_depth * act_width}; dim1 of decoder matrix = {dim1}"
+            f"Computed decoder matrix has invalid shape: Target depth dimension = {act_depth}; dim0 of decoder matrix = {dim0}"
         )
 
-    return coeffs
+    if not dim1 == output_dim:
+        raise RuntimeError(
+            f"Computed decoder matrix has invalid shape: Target output dimension = {output_dim}; dim1 of decoder matrix = {dim1}"
+        )
+
+    if not dim2 == act_width:
+        raise RuntimeError(
+            f"Computed decoder matrix has invalid shape: Target width dimension = {act_width}; dim2 of decoder matrix = {dim2}"
+        )
+
+    return decoders

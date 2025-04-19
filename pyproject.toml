@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "my_package"
+authors = [
+    {name = "Chris Fritz", email = "fritz17236@htomail.com"},
+]
+description = "Untitled"
+requires-python = ">=3.11"
+version = "0.0.1"
+
+dependencies = [
+    "numpy",
+    "matplotlib",
+    "pytest",
+    "scipy",
+    "scikit-learn",
+    "torch",
+    "torchvision",
+    "pydantic",
+    "flake8", 
+    "black",
+    "autoflake",
+    "tqdm",
+    "cvxpy",
+]
