@@ -9,7 +9,9 @@ __email__ = "fritz17236@hotmail.com"
 import numpy as np
 from numpy.typing import NDArray
 from .params import RegressionParams
-
+from .activations import compute_activations
+from .training import compute_decoders
+from .inference import infer
 
 class NonlinearRegressorModel:
     def __init__(self, config: RegressionParams) -> None:
@@ -23,12 +25,34 @@ class NonlinearRegressorModel:
         
         self.decoders = None
         
-    def fit(self, input_x: NDArray[np.floating], output_y: NDArray[np.floating]) -> float:
-        """Fit the model to map the provided input to the provided output, reporting the resulting residual.
+    def fit(self, input_x: NDArray[np.floating], output_y: NDArray[np.floating]) -> None:
+        """Fit the model to map the provided input to the provided output; TODO: report the resulting residual.
 
         Args:
             input_x (NDArray[np.floating]): Input having shape [NUM]
             output_y (NDArray[np.floating]): _description_
         """
+        # Batch compute activations
+        activations_train = compute_activations(
+            self.neurons,
+            input_x=input_x,
+            config=self.config
+        )  
+        
+        self.decoders = compute_decoders(activations_train, output_y, self.config)
+    
+    def predict(self, input_x: NDArray[np.floating], average: bool=True) -> NDArray[np.floating]:
+        
+        if self.decoders is None:
+            raise RuntimeError("The provided model has not been trained so cannot make a prediction. Call 'fit' first.")
+        
+        outputs = infer(input_x, self.neurons, self.decoders, self.config)
+        
+        if average: 
+            return outputs.mean(axis=2).T
+        else:
+            return outputs
+        
         ...
+        
         
