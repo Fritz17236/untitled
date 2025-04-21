@@ -29,8 +29,9 @@ class NonlinearRegressorModel:
         """Fit the model to map the provided input to the provided output; TODO: report the resulting residual.
 
         Args:
-            input_x (NDArray[np.floating]): Input having shape [NUM]
-            output_y (NDArray[np.floating]): _description_
+            input_x (NDArray[np.floating]): Input having shape [NUM_INPUT_DIMS] x [NUM_SAMPLES]
+            output_y (NDArray[np.floating]): Target output to fit having shape [NUM_OUTPUT_DIMS] x [NUM_SAMPLES]
+
         """
         # Batch compute activations
         activations_train = compute_activations(
@@ -52,7 +53,10 @@ class NonlinearRegressorModel:
             return outputs.mean(axis=2).T
         else:
             return outputs
-        
-        ...
+     
+    def _batch_fit():
+        # TODO: batch across neurons, 
+        # TODO: batch across samples, 
+        ...   
         
         
