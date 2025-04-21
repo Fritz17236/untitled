@@ -24,7 +24,7 @@ from . import params
 class RegressorType(Enum):
     HUBER = None
 
-
+# TODO: gradient-based option if we cannot fit in memory or have existing decoder array to use  
 def _regress_neuron(
     acts: NDArray[np.floating], target_outputs: NDArray[np.floating]
 ) -> NDArray[np.floating]:

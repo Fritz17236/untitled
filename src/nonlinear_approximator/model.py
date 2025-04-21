@@ -5,7 +5,7 @@ from __future__ import annotations
 __author__ = "Chris Fritz"
 __email__ = "fritz17236@hotmail.com"
 
-
+from pathlib import Path
 import numpy as np
 from numpy.typing import NDArray
 from .params import RegressionParams
@@ -45,7 +45,7 @@ class NonlinearRegressorModel:
     def predict(self, input_x: NDArray[np.floating], average: bool=True) -> NDArray[np.floating]:
         
         if self.decoders is None:
-            raise RuntimeError("The provided model has not been trained so cannot make a prediction. Call 'fit' first.")
+            raise RuntimeError("The provided model has not been trained so cannot make a prediction. Call 'fit' first or 'load' first.")
         
         outputs = infer(input_x, self.neurons, self.decoders, self.config)
         
@@ -53,10 +53,26 @@ class NonlinearRegressorModel:
             return outputs.mean(axis=2).T
         else:
             return outputs
-     
+    
+    def save(self):
+        """Save the model state to the path specified in its configuration"""
+        # 
+        ...
+    
+    def load(self):
+        """Load the model state from the path specified in its configuration."""
+        ...
+
     def _batch_fit():
         # TODO: batch across neurons, 
         # TODO: batch across samples, 
         ...   
         
         
+# TODO:     
+class DecoderWeights:
+    """Data structure for storing neural decoder weights lazily on non-volatile memory (NVM) for quick saving/loading"""
+# init - create hdf5 structure 
+# save weights
+# load weights
+# info from config

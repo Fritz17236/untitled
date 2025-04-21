@@ -77,7 +77,7 @@ def compute_activations(
     input_x: NDArray[np.floating],
     config: RegressionParams,
 ) -> NDArray[np.floating]:
-    """Pass the provided input through the provided neurons and return the activations of those neruons.
+    """Pass the provided input through the provided neurons and return the activations of those neurons.
 
     Args:
         neurons (NDArray[np.floating]): Neurons to compute activations for with shape [INPUT_DIMENSION] x [WIDTH]

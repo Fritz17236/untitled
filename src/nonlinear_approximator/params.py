@@ -7,8 +7,9 @@ from __future__ import annotations
 __author__ = "Chris Fritz"
 __email__ = "fritz17236@hotmail.com"
 
-from pydantic import BaseModel
 from enum import Enum
+from pathlib import Path
+from pydantic import BaseModel
 from .activations import TransformType
 
 
@@ -75,6 +76,7 @@ class RegressionParams(BaseModel, frozen=True):
         output_dimension (int): The dimension of the data vectors we expect the network to output
         transform_type (TransformType): The type of nonlinear transformation to use between layers
         transform_params (NonlinearTransformationParams): The parameters for the nonlinear transformation.
+        storage_path (Path): Path on the local filesystem to save and/or load model state (e.g. decoder weights) to/from 
 
     """
 
@@ -84,3 +86,4 @@ class RegressionParams(BaseModel, frozen=True):
     output_dimension: int
     transform_type: TransformType
     transform_params: NonlinearTransformationParams
+    storage_path: Path | None 
