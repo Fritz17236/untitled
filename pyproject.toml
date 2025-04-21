@@ -3,7 +3,7 @@ requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "my_package"
+name = "nonlinear_approximator"
 authors = [
     {name = "Chris Fritz", email = "fritz17236@htomail.com"},
 ]
