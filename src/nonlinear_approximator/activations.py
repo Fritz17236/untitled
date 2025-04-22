@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from params import LogisticParams, GaussParams, TentParams, RegressionParams
+    from .params import LogisticParams, GaussParams, TentParams, RegressionParams
 __author__ = "Chris Fritz"
 __email__ = "fritz17236@hotmail.com"
 
@@ -67,9 +67,9 @@ def tent(x: NDArray[np.floating], params: TentParams) -> NDArray[np.floating]:
 
 
 class TransformType(Enum):
-    LOGISTIC = partial(logistic)
-    GAUSS = partial(gauss)
-    TENT = partial(tent)
+    LOGISTIC = 1
+    GAUSS = 2
+    TENT = 3
 
 
 def compute_activations(
@@ -104,16 +104,15 @@ def compute_activations(
             f"Mismatch between neuron dimension [axis 0]={n_dims_neuron} and input dimension set in config={n_dims_input}"
         )
 
-    # number of neurons (width) must match that contained in the config
-    if not width == config.width:
-        raise ValueError(
-            f"Mismatch between number of neurons provided={width} and the number of neurons set in config={config.width}"
-        )
 
-    activations = np.zeros((config.depth, config.width, num_samples))
+    activations = np.zeros((config.depth, width, num_samples))
 
-    transform = config.transform_type.value
-
+    transform: callable = {
+        TransformType.GAUSS: gauss,
+        TransformType.LOGISTIC: logistic,
+        TransformType.TENT: tent,
+    }.get(config.transform_type)
+    
     if not transform:
         raise RuntimeError(
             f"Transform '{config.transform_type.name}' could not be found."

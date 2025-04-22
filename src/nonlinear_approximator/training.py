@@ -49,7 +49,7 @@ def compute_decoders(
 
     Args:
         activations (NDArray[np.floating]): Activations associated with target input having shape [DEPTH] x [WIDTH] x [NUM_SAMPLES]
-        target_output (NDArray[np.floating]): The target output to regress against, having shape [NUM_SAMPLES] x [OUTPUT_DIMENSION]
+        target_output (NDArray[np.floating]): The target output to regress against, having shape [OUTPUT_DIMENSION] x [NUM_SAMPLES]
         config (params.RegressionParams): The regression configuration specifying, width, and depth.
 
     Returns:
@@ -64,11 +64,6 @@ def compute_decoders(
             f"Mismatch between provided activations with depth dimension (0) = {act_depth} and provided configuration depth = {config.depth}"
         )
 
-    if not act_width == config.width:
-        raise ValueError(
-            f"Mismatch between provided activations with width dimension (1) = {act_width} and provided configuration width = {config.width}"
-        )
-
     if not output_dim == config.output_dimension:
         raise ValueError(
             f"Mismatch between provided target output dimension with dimension (0) = {output_dim} and provided configuration's output dimension = {config.output_dimension}"
@@ -76,7 +71,7 @@ def compute_decoders(
 
     if not act_num_samples == num_samples:
         raise ValueError(
-            f"Mismatch between provided activations with sample count dimension (2) = {act_depth} and target outputs with sample count {num_samples}"
+            f"Mismatch between provided activations with sample count dimension (2) = {act_num_samples} and target outputs with sample count {num_samples}"
         )
 
     # multiprocessing to perform regression on per-neuron basis
@@ -99,9 +94,9 @@ def compute_decoders(
                                 activations[:, idx_neuron, :].T,
                                 target_output,
                             )
-                            for idx_neuron in range(config.width)
+                            for idx_neuron in range(act_width)
                         ],
-                        total=config.width,
+                        total=act_width,
                     ),
                 )
             ],
