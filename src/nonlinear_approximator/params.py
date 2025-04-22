@@ -77,7 +77,8 @@ class RegressionParams(BaseModel, frozen=True):
         transform_type (TransformType): The type of nonlinear transformation to use between layers
         transform_params (NonlinearTransformationParams): The parameters for the nonlinear transformation.
         storage_path (Path): Path on the local filesystem to save and/or load model state (e.g. decoder weights) to/from 
-
+        neuron_chunk_size (int): The number of neurons to consider at once when loading into memory, only applies if storage path is set
+        batch_size (int): The number of samples to use when computing updates to existing decoder weights (currrently) only applies is storage path is set
     """
 
     width: int
@@ -86,4 +87,6 @@ class RegressionParams(BaseModel, frozen=True):
     output_dimension: int
     transform_type: TransformType
     transform_params: NonlinearTransformationParams
-    storage_path: Path | None 
+    storage_path: Path | None = None
+    neuron_chunk_size: int | None = None
+    batch_size: int | None = None
