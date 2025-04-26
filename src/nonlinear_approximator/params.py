@@ -88,5 +88,5 @@ class RegressionParams(BaseModel, frozen=True):
     transform_type: TransformType
     transform_params: NonlinearTransformationParams
     storage_path: Path | None = None
-    neuron_chunk_size: int | None = None
-    batch_size: int | None = None
+    neuron_chunk_size: int | None = 250
+    batch_size: int | None = -1 

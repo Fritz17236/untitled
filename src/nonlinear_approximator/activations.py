@@ -81,48 +81,48 @@ def compute_activations(
 
     Args:
         neurons (NDArray[np.floating]): Neurons to compute activations for with shape [INPUT_DIMENSION] x [WIDTH]
-        input_x (NDArray[np.floating]): Input to compute activation for having shape [INPUT_DIMENSION] x [NUM_SAMPLES]
+        input_x (NDArray[np.floating]): Input to compute activation for having shape [NUM_SAMPLES] x [INPUT_DIMENSION]
         config (RegressionParams): Regression configuration parameters
 
     Returns:
-        NDArray[np.floating]: Neuron activations having shape [DEPTH] x [WIDTH] x [NUM_SAMPLES]
+        NDArray[np.floating]: Neuron activations having shape [NUM_SAMPLES] x [DEPTH] x [WIDTH]
     """
     # neurons have shape [num_dims, width]
     # input has shape [num_dims, num_samples_input]
     n_dims_neuron, width = neurons.shape
-    n_dims_input, num_samples = input_x.shape
+    num_samples, n_dims_input= input_x.shape
 
     # neurons input dimension must match input dimension
     if not n_dims_neuron == n_dims_input:
         raise ValueError(
-            f"Mismatch between neuron dimension [axis 0]={n_dims_neuron} and input dimension [axis=0]={n_dims_input}"
+            f"Mismatch between neuron array with shape (INPUT_DIMENSION={n_dims_neuron}, WIDTH={width}), and input_x with shape (NUM_SAMPLES={num_samples}, INPUT_DIMENSION={n_dims_input})."
         )
 
     # input dimensions must match that contained in the config
     if not n_dims_neuron == config.input_dimension:
         raise ValueError(
-            f"Mismatch between neuron dimension [axis 0]={n_dims_neuron} and input dimension set in config={n_dims_input}"
+             f"Mismatch between neuron array with shape (INPUT_DIMENSION={n_dims_neuron}, and input dimension set in config={config.input_dimension}"
         )
 
 
-    activations = np.zeros((config.depth, width, num_samples))
+    activations = np.zeros((num_samples, config.depth, width))
 
-    transform: callable = {
-        TransformType.GAUSS: gauss,
-        TransformType.LOGISTIC: logistic,
-        TransformType.TENT: tent,
-    }.get(config.transform_type)
+    available_transforms = {
+        TransformType.GAUSS.value: gauss,
+        TransformType.LOGISTIC.value: logistic,
+        TransformType.TENT.value: tent, 
+    }
+    transform: callable = available_transforms.get(config.transform_type.value)
     
     if not transform:
         raise RuntimeError(
-            f"Transform '{config.transform_type.name}' could not be found."
-        )
+            f"Transform '{config.transform_type}' could not be found. Available transforms: {available_transforms}")
 
     for idx_layer in range(config.depth):
         if idx_layer == 0:
-            activations[idx_layer, :, :] = neurons.T @ input_x
+            activations[:, idx_layer, :] = (input_x @ neurons)
         else:
-            activations[idx_layer, :, :] = transform(
-                activations[idx_layer - 1, :, :], config.transform_params
+            activations[ :,idx_layer, :] = transform(
+                activations[ :,idx_layer - 1, :], config.transform_params
             )
     return activations

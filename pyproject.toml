@@ -21,7 +21,8 @@ dependencies = [
     "pydantic",
     "tqdm",
     "cvxpy",
-    "h5py"
+    "h5py",
+    "ipykernel",
 ]
 
 [project.optional-dependencies]

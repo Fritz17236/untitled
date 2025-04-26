@@ -26,17 +26,18 @@ def infer(
     """Pass input through the model and infer the output
 
     Args:
-        input_x (NDArray[np.floating]): The input to pass through the model having shape [INPUT_DIM] x [NUM_SAMPLES]
+        input_x (NDArray[np.floating]): The input to pass through the model having shape [NUM_SAMPLES] x [INPUT_DIM]
         neurons (NDArray): Neuron preferred directions having shape [INPUT_DIMENSION] x [WIDTH]
         decoders (NDArray[np.floating): The model weights mapping activations to the target function having shape [DEPTH] x [OUTPUT_DIM] x [WIDTH]
         config (RegressionParams): Parameters for regression, containing width and depth configuration for the network.
 
     Returns:
-        NDArray[np.floating]: The inferred model output having shape [OUTPUT_DIM] x [NUM_SAMPLES]
+        NDArray[np.floating]: The inferred model output having shape [OUTPUT_DIM] x [NUM_SAMPLES] x [WIDTH]
     """
     # compute activations of input,
     acts = compute_activations(neurons, input_x, config)
-    # D x W x S
+    width = neurons.shape[1]
+    
     cpu_count = mp.cpu_count()
     if len(os.sched_getaffinity(0)) < cpu_count:
         try:
@@ -55,16 +56,16 @@ def infer(
                     iterable=tqdm.tqdm(
                         [
                             (
+                                acts[
+                                    :, :, idx_neuron
+                                ],  # has shape [NUM_SAMPLES] x [DEPTH]
                                 decoders[
                                     :, :, idx_neuron
-                                ].T,  # has shape [OUTPUT_DIM] x [DEPTH]
-                                acts[
-                                    :, idx_neuron, :
-                                ],  # has shape [DEPTH] x [NUM_SAMPLES]
+                                ]  # has shape [DEPTH] x [OUTPUT_DIM]
                             )
-                            for idx_neuron in range(config.width)
+                            for idx_neuron in range(width)
                         ],
-                        total=config.width,
+                        total=width,
                     ),
                 )
             ],
