@@ -114,7 +114,6 @@ class NonlinearRegressorModel:
                         
                         else:
                             decoders[:] =  newton_step_decoder(activations, batch_output, decoders, self.config)          
-                        # save them to nvm for this neuron chunk        
                         
                         assert not np.any(np.isnan(decoders))
                         file[NonlinearRegressorModel.DECODER_STRPATH][neuron_chunk] = decoders
@@ -217,6 +216,17 @@ class NonlinearRegressorModel:
             + self.config.storage_path.suffix
         )
         
+    # qr facotrize  Rx = Q^Tb ==> x = inv(R) @ Q.T @ b
+    # how to store qrs for each neuron? 
+    # grab a neuron chunk:
+        # get associated q,r matrices with that chunk 
+        # if they don't exist, create them 
+            # qr factorize np.linalg.qr (mode = complete gives full mxm and m x n)
+        # otherwise load Qs with shape (MxM x WIDTH), Rs with shape (MxN x WIDTH)
+        
+    # to update: call update scipy.linalg.qr_insert(Q, R, u=(new rows), k=0, which=row,)
+        # store in place 
+    
     def _generate_neurons(self) -> NDArray[np.floating]:
         """Generate neurons for the model according to its assigned coniguration 
 
@@ -261,11 +271,6 @@ class NonlinearRegressorModel:
                 file.create_dataset(NonlinearRegressorModel.NEURON_STRPATH, data=self._generate_neurons())
             self._neurons = file[NonlinearRegressorModel.NEURON_STRPATH][:]
     
-    def _batch_fit():
-        # TODO: batch across neurons, 
-        # TODO: batch across samples, 
-        ...   
-        
     def _check_storage_path_configured(self): 
         """ Confirm that a save file exists for the configured hdf5 save path, raising a ValueError otherwise."""
         if not self._h5py_save_path:
