@@ -80,7 +80,7 @@ class RegressionParams(BaseModel, frozen=True):
         neuron_chunk_size (int): The number of neurons to consider at once when loading into memory, only applies if storage path is set
         batch_size (int): The number of samples to use when computing updates to existing decoder weights (currrently) only applies is storage path is set
     """
-
+    # TODO: sanity check that batch size if not -1 is >= output dimension. 
     width: int
     depth: int
     input_dimension: int
