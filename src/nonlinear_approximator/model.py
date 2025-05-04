@@ -31,10 +31,7 @@ class NonlinearRegressorModel:
     DATA_STRPATH = "data"
     
     def __init__(self, config: RegressionParams) -> None:
-        self.config = config
-        
-        # instantiate neurons associated with this model  
-        
+        self.config = config 
 
         self.decoders = None
         
@@ -105,7 +102,7 @@ class NonlinearRegressorModel:
                         desc="Training across neurons...",
                     ):
                         
-                        # get neural activations for this batch ofs data                         
+                        # get neural activations for this batch of data                         
                         slice_start = neuron_chunk[2].start
                         slice_end = neuron_chunk[2].stop if not hasattr(neuron_chunk[2], 'end') else neuron_chunk[2].end
                         
@@ -118,11 +115,15 @@ class NonlinearRegressorModel:
                         #   load decoders in memory for this neuron chunk 
                         decoders = file[NonlinearRegressorModel.DECODER_STRPATH][neuron_chunk]
                         
+                        
+                        fit_qr(A=activations, B=batch_output, config=self.config, neuron_slice=neuron_chunk)
+                        
                         # if we don't have decoders for this chunk compute them for this batch, neuron chunk                        
                         if np.all(np.isnan(decoders)):
                             print(f"Decoders at slice {neuron_chunk} contained all NaN values. Initializing decoders...")
                             decoders[:] = compute_decoders(activations, batch_output, self.config)   
                         
+                        # otherwise update existing decoders 
                         else:
                             decoders[:] =  newton_step_decoder(activations, batch_output, decoders, self.config)          
                         
@@ -312,7 +313,68 @@ class NonlinearRegressorModel:
                 file.create_dataset(NonlinearRegressorModel.NEURON_STRPATH, data=self._generate_neurons())
             self._neurons = file[NonlinearRegressorModel.NEURON_STRPATH][:]
     
+            if (NonlinearRegressorModel.DECODER_STRPATH_Q not in file) or (NonlinearRegressorModel.DECODER_STRPATH_R not in file):
+                # consistency check: either both Q,R are in file or neither are in file. 
+                if NonlinearRegressorModel.DECODER_STRPATH_R in file or NonlinearRegressorModel.DECODER_STRPATH_Q in file: 
+                    raise RuntimeError(f"Bad state of Q,R decoders, either both or none of {NonlinearRegressorModel.DECODER_STRPATH_Q, NonlinearRegressorModel.DECODER_STRPATH_R}"\
+                        f"should be in the HDF5 file, but keys were: {file.keys()}")
+            
+                # create resiable spaces for Q and R values for each block. 
+                INIT_BATCH_COUNT = 10 # TODO: put this into params
+                shape_Q = (INIT_BATCH_COUNT * self.config.batch_size, self.config.depth, self.config.width)
+                shape_R = (INIT_BATCH_COUNT * self.config.batch_size, self.config.depth, self.config.depth)
+                
+                # create datasets for Q and R
+                file.create_dataset(
+                    name=NonlinearRegressorModel.DECODER_STRPATH_Q,
+                    shape=shape_Q,
+                    maxshape=(None, self.config.depth, self.config.width),
+                    chunks=(self.config.batch_size, self.config.depth, self.config.width),
+                )
+                
+                file.create_dataset(
+                    name=NonlinearRegressorModel.DECODER_STRPATH_R,
+                    shape=shape_R,
+                    maxshape=(None, self.config.depth, self.config.width),
+                    chunks=(self.config.depth, self.config.depth, self.config.width),
+                )
+                
+                # TODO: R, Q, QTB 
+                # Q2 blocks are the QR decomposition of the collected 
+                
+                # how to expand qr factorization to new block 
+
     def _check_storage_path_configured(self): 
         """ Confirm that a save file exists for the configured hdf5 save path, raising a ValueError otherwise."""
         if not self._h5py_save_path:
             raise ValueError(f"There is no storage path configured: {self.config.storage_path=}")
+
+class PersistentDecoder:
+    """ A decoder instance holds information for a given neuron.
+    
+        Provides persistent storage of decoder paramters via batched (blockwise) QR factorization, along 
+        with methods to update the decomposition with new data. 
+    """
+    
+    Q2_STRPATH = 'q2'
+    
+    
+    def __init__(self, 
+                 h5py_save_path: Path,
+                 neuron_direction: NDArray[np.floating],
+                 neuron_index: int, 
+                 ):
+        self._h5py_save_path = h5py_save_path
+        self.neuron_direction = neuron_direction
+        self.neuron_index = neuron_index
+    
+    # decoder
+    
+    # q2
+    
+    # r 
+    
+    # qtb
+    
+    # fit_batch 
+        # updated q2, r, qtb 

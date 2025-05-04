@@ -306,3 +306,35 @@ def newton_step_decoder(
 
     return decoders
 
+def fit_qr(A: NDArray[np.floating], B: NDArray[np.floating], config: params.RegressionParams, neuron_slice: slice):
+    
+    # we should have R, Q2, QTB already initialized raise error if not 
+    
+    #  case 1: we have no R, Q2, QTB, lets create them 
+    # rows == 0: 
+        # Q1, R1 = qr_factorize(A) # check Q1, R1 shape against config + input data 
+        # Q2, Rtilde = qr factorize(R1) # check Q2, Rtilde
+        # Q = Q1 @ Q2  # check shape 
+        # QTB = Q.T @ B # check shape 
+        
+        # decoder = inv(Rtilde) @ QTB
+    
+    # case 2: we must have all of these quantities already computed, let's update them with new data 
+    
+    ...
+    
+def qr_initialize(A: NDArray[np.floating], B: NDArray[np.floating]) -> tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]:
+    """Initialize a batched (TSQR) factorization from provided activation and target output data.   
+
+    Args:
+        A (NDArray[np.floating]): Input matrix to factorize, having shape [NUM_SAMPLES] x [DEPTH]
+        B (NDArray[np.floating]): Target output matrix, having shape [NUM_SAMPLES] x [OUTPUT_DIMENSION]
+
+    Returns:
+        tuple[NDArray[np.floating], NDArray[np.floating], NDArray[np.floating]]: Tuple respectively containing Rtilde, Q2, and QTB values to be stored persistently and updated via TSQR algorithm. 
+    """ 
+    Q1, R1 = np.linalg.qr(A, mode='reduced')
+    Q2, Rtilde = np.linalg.qr(R1, mode='reduced')
+    Q = Q1 @ Q2 
+    QTB = Q.T @ B
+    return (Rtilde, Q2, QTB)
