@@ -6,9 +6,12 @@ __author__ = "Chris Fritz"
 __email__ = "fritz17236@hotmail.com"
 
 import numpy as np
+import multiprocessing as mp 
 import h5py
 from pathlib import Path
+from functools import cached_property
 import tqdm
+import os 
 from zlib import adler32    
 from numpy.typing import NDArray
 from .params import RegressionParams
@@ -38,7 +41,7 @@ class NonlinearRegressorModel:
         if config.storage_path:
             self._init_hdf5()
         else:
-            self._neurons = self._generate_neurons()
+            self._neurons = self._generate_neuron_directions()
             print("Storage path not configured, storing all model parameters in memory.")
 
     def fit(self, input_x: NDArray[np.floating], output_y: NDArray[np.floating]) -> None:
@@ -110,28 +113,10 @@ class NonlinearRegressorModel:
                             neurons=self._neurons[:, slice_start:slice_end],
                             input_x=batch_input,
                             config=self.config
-                        )                      
+                        )                       
                         
-                        #   load decoders in memory for this neuron chunk 
-                        decoders = file[NonlinearRegressorModel.DECODER_STRPATH][neuron_chunk]
+                        self._fit_qr(activations, batch_output, config=self.config, neuron_slice=neuron_chunk)
                         
-                        
-                        fit_qr(A=activations, B=batch_output, config=self.config, neuron_slice=neuron_chunk)
-                        
-                        # if we don't have decoders for this chunk compute them for this batch, neuron chunk                        
-                        if np.all(np.isnan(decoders)):
-                            print(f"Decoders at slice {neuron_chunk} contained all NaN values. Initializing decoders...")
-                            decoders[:] = compute_decoders(activations, batch_output, self.config)   
-                        
-                        # otherwise update existing decoders 
-                        else:
-                            decoders[:] =  newton_step_decoder(activations, batch_output, decoders, self.config)          
-                        
-                        assert not np.any(np.isnan(decoders))
-                        file[NonlinearRegressorModel.DECODER_STRPATH][neuron_chunk] = decoders
-                        assert not np.any(np.isnan(
-                                                   file[NonlinearRegressorModel.DECODER_STRPATH][neuron_chunk]
-                                                   ))
                   
     def predict(self, input_x: NDArray[np.floating], average: bool=True) -> NDArray[np.floating]:
         # TODO: validate input_x shape 
@@ -201,8 +186,15 @@ class NonlinearRegressorModel:
             for key in f.keys():
                 del f[key]
             
+    @cached_property 
+    def neurons(self) -> list[PersistentQRDecompNeuron]:
+        return [
+            PersistentQRDecompNeuron(self._h5py_save_path, direction, idx_neuron)
+            for idx_neuron, direction in enumerate(self.neuron_directions)
+        ]
+            
     @property
-    def neurons(self) -> NDArray[np.floating]:
+    def neuron_directions(self) -> NDArray[np.floating]:
         """ Fetch a copy of the model neurons' preferred directions.
 
 
@@ -230,40 +222,7 @@ class NonlinearRegressorModel:
             + self.config.storage_path.suffix
         )
              
-    def _qr_factorize(self, acts: NDArray[np.floating], Q: NDArray[np.floating] | None, R: NDArray[np.floating] | None):
-        """QR factorization of the provided activations having shape [NUM_SAMPLES] x [DEPTH]"""
-        # Q none and R none 
-            # Q, R = np.linalg.qr (acts) #  ensure full / complete mode to preserve size in memory of Q,R matrices (otherwise we have an issue storing) 
-        
-        # elif (q and not r) or (r and not q): 
-            # raise valueerror
-            
-        # else # q and r are both present, update rows 
-        #  scipy.linalg.qr_insert(Q, R, u=(new rows), k=0, which=row,)
-        
-        # return q, r
-        ...
-    
-    def _qr_to_decoder(self, q, r):
-        """Maps qr factoriztion matrice to decoder matrices having shape [DEPTH] x [OUTPUT_DIM]"""
-        ...
-       
-    def _load_qr_decomps_by_chunk(self, neuron_chunk: slice):
-        """Load the Q and R decompositions associated with the neurons specified by the provided slice"""
-        ...
-        
-    # qr facotrize  Rx = Q^Tb ==> x = inv(R) @ Q.T @ b
-    # how to store qrs for each neuron? 
-    # grab a neuron chunk:
-        # get associated q,r matrices with that chunk 
-        # if they don't exist, create them 
-            # qr factorize np.linalg.qr (mode = complete gives full mxm and m x n)
-        # otherwise load Qs with shape (MxM x WIDTH), Rs with shape (MxN x WIDTH)
-        
-    # to update: call update
-        # store in place 
-    
-    def _generate_neurons(self) -> NDArray[np.floating]:
+    def _generate_neuron_directions(self) -> NDArray[np.floating]:
         """Generate neurons for the model according to its assigned coniguration 
 
         Returns:
@@ -310,7 +269,7 @@ class NonlinearRegressorModel:
                 
             # if neuron preferred directions are not present in file, create them. 
             if NonlinearRegressorModel.NEURON_STRPATH not in file:
-                file.create_dataset(NonlinearRegressorModel.NEURON_STRPATH, data=self._generate_neurons())
+                file.create_dataset(NonlinearRegressorModel.NEURON_STRPATH, data=self._generate_neuron_directions())
             self._neurons = file[NonlinearRegressorModel.NEURON_STRPATH][:]
     
             if (NonlinearRegressorModel.DECODER_STRPATH_Q not in file) or (NonlinearRegressorModel.DECODER_STRPATH_R not in file):
@@ -348,33 +307,162 @@ class NonlinearRegressorModel:
         """ Confirm that a save file exists for the configured hdf5 save path, raising a ValueError otherwise."""
         if not self._h5py_save_path:
             raise ValueError(f"There is no storage path configured: {self.config.storage_path=}")
+    
+    def _fit_qr(    
+        self,
+        activations_batch: NDArray[np.floating], 
+        target_output_batch: NDArray[np.floating], 
+        config: RegressionParams
+    ) -> NDArray[np.floating]:
+        """Update the provided decoders using a newton step 
+        Args:
+            activations_batch (NDArray[np.floating]): batched activations representing input, having shape [DEPTH] x [WIDTH_NEURON_BATCH] x [NUM_SAMPLES_BATCH] 
+            target_output_batch (NDArray[np.floating]): The target output to regress against, having shape [OUTPUT_DIMENSION] x [NUM_SAMPLES_BATCH]
+            decoders (NDArray[np.floating]): The existing decoder array (regression coefficients) to update, having shape  [DEPTH] x [OUTPUT_DIMENSION] x [WIDTH_NEURON_BATCH]
+            config (params.RegressionParams): The regression configuration specifying, width, and depth.
 
-class PersistentDecoder:
-    """ A decoder instance holds information for a given neuron.
+        Returns:
+            NDArray[np.floating]:  The updated decoder array (regression coefficients), having shape  [DEPTH] x [OUTPUT_DIMENSION] x [WIDTH_NEURON_BATCH]
+        """
+        
+        SAMPLE_DIM = 0
+        OUTPUT_DIM = 1 
+        DEPTH_DIM = 1
+        WIDTH_DIM = 2
+        
+        act_depth = activations_batch.shape[DEPTH_DIM]
+        act_num_samples = activations_batch.shape[SAMPLE_DIM]
+        act_width = activations_batch.shape[WIDTH_DIM]
+        
+        output_dim = target_output_batch.shape[OUTPUT_DIM]
+        target_num_samples = target_output_batch.shape[SAMPLE_DIM]
+        
+        if not act_depth == config.depth:
+            raise ValueError(
+                f"Mismatch between activations_batch array with shape (NUM_SAMPLES={act_num_samples}, DEPTH={act_depth}, WIDTH={act_width}), and depth set in config={config.depth}"
+            )
+
+        if not output_dim == config.output_dimension:
+            raise ValueError(
+                f"Mismatch between target output array with shape (NUM_SAMPLES={target_num_samples}, OUTPUT_DIMENSION={output_dim}), and output dimension set in config={config.output_dimension}"
+            )
+
+        if not act_num_samples == target_num_samples:
+            raise ValueError(
+                f"Mismatch between activations_batch array with shape output array with shape (NUM_SAMPLES={act_num_samples}, DEPTH={act_depth}, WIDTH={act_width}), and"\
+                f" target output array with shape (NUM_SAMPLES={target_num_samples}, OUTPUT_DIMENSION={output_dim})"
+            )
+
+        # multiprocessing to perform regression on per-neuron basis
+        cpu_count = mp.cpu_count()
+        if len(os.sched_getaffinity(0)) < cpu_count:
+            try:
+                os.sched_setaffinity(0, range(cpu_count))
+            except OSError:
+                print("Could not set affinity")
+        num_worker_procs = len(os.sched_getaffinity(0)) - 1
+
+        with mp.Pool(num_worker_procs) as p:
+            decoders = np.stack(
+                *[
+                    p.starmap(
+                        func=fit_neuron_to_data_qr,
+                        iterable=tqdm.tqdm(
+                            [
+                                (
+                                    self.neurons[idx_neuron],
+                                    activations_batch[:, :, idx_neuron],
+                                    target_output_batch
+                                )
+                                for idx_neuron in range(act_width)
+                            ],
+                            total=act_width,
+                            desc="Computing decoders",
+                            leave=False
+                        ),
+                    )
+                ],
+                axis=-1,
+            )
+
+        # confirm correct shape output
+        dim0, dim1, dim2 = decoders.shape
+        if not dim0 == act_depth:
+            raise RuntimeError(
+                f"Computed decoder matrix has invalid shape: Target depth dimension = {act_depth}; dim0 of decoder matrix = {dim0}"
+            )
+
+        if not dim1 == output_dim:
+            raise RuntimeError(
+                f"Computed decoder matrix has invalid shape: Target output dimension = {output_dim}; dim1 of decoder matrix = {dim1}"
+            )
+
+        if not dim2 == act_width:
+            raise RuntimeError(
+                f"Computed decoder matrix has invalid shape: Target width dimension = {act_width}; dim2 of decoder matrix = {dim2}"
+            )
+
+        return decoders
+
+class PersistentQRDecompNeuron:
+    STRPATH_Q = NonlinearRegressorModel.DECODER_STRPATH_Q
+    STRPATH_R = NonlinearRegressorModel.DECODER_STRPATH_R
+    STRPATH_A = "A"
+    STRPATH_B = "B"
     
-        Provides persistent storage of decoder paramters via batched (blockwise) QR factorization, along 
-        with methods to update the decomposition with new data. 
-    """
     
-    Q2_STRPATH = 'q2'
+    def __init__(self, h5py_storage_path: Path, preferred_direction: NDArray[np.floating], neuron_idx: int):
+        self._h5py_path = h5py_storage_path
+        self._neuron_idx = neuron_idx
+        self.num_rows_data = 0    
+        self.preferred_direction = preferred_direction
+        with h5py.File(self._h5py_path, 'a') as file:
+            for strpath in [
+                PersistentQRDecompNeuron.STRPATH_Q,
+                PersistentQRDecompNeuron.STRPATH_R,
+                PersistentQRDecompNeuron.STRPATH_A,
+                PersistentQRDecompNeuron.STRPATH_B,    
+            ]:
+                if not strpath in file:
+                    raise ValueError(f"The provided h5py path did not contain keys for Q, R, A, and B values, {file.keys()=}")
+                
+
+    @property
+    def A(self):
+        with h5py.File(self._h5py_path, 'a') as file:
+            return file[PersistentQRDecompNeuron.STRPATH_A][:, :, self._neuron_idx]
     
-    
-    def __init__(self, 
-                 h5py_save_path: Path,
-                 neuron_direction: NDArray[np.floating],
-                 neuron_index: int, 
-                 ):
-        self._h5py_save_path = h5py_save_path
-        self.neuron_direction = neuron_direction
-        self.neuron_index = neuron_index
-    
-    # decoder
-    
-    # q2
-    
-    # r 
-    
-    # qtb
-    
-    # fit_batch 
-        # updated q2, r, qtb 
+    @property
+    def B(self):
+        with h5py.File(self._h5py_path, 'a') as file:
+            return file[PersistentQRDecompNeuron.STRPATH_B][:, :, self._neuron_idx]  
+
+    @cached_property
+    def decoder(self):
+        Q, R = np.linalg.qr(self.A)
+        return np.linalg.inv(R) @ Q.T @ self.B  
+          
+    def append_to_block(self, A_new, B_new):
+        new_rows = A_new.shape[0]
+        curr_rows_in_mem = self.A.shape[0]
+        
+        with h5py.File(self._h5py_path, 'a') as file:
+            
+            # resize number of rows if too  big
+            if self.num_rows_data + new_rows >= curr_rows_in_mem:
+                    new_shape_A = file[PersistentQRDecompNeuron.STRPATH_A]
+                    new_shape_A[0] *= 2
+                    new_shape_B = file[PersistentQRDecompNeuron.STRPATH_B]
+                    new_shape_B[0] *= 2
+                    
+                    file[PersistentQRDecompNeuron.STRPATH_A].resize(new_shape_A)
+                    file[PersistentQRDecompNeuron.STRPATH_gB].resize(new_shape_B)
+        
+            file[PersistentQRDecompNeuron.STRPATH_A][self.num_rows_data:self.num_rows_data + new_rows, :, self._neuron_idx] = A_new
+            file[PersistentQRDecompNeuron.STRPATH_B][self.num_rows_data:self.num_rows_data + new_rows, :, self._neuron_idx] = B_new
+            
+            del self.decoder
+        
+def fit_neuron_to_data_qr(neuron: PersistentQRDecompNeuron, A: NDArray[np.floating], B: np.floating):
+    neuron.append_to_block(A_new=A, B_new=B)
+    return neuron.decoder
