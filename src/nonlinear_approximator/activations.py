@@ -118,6 +118,7 @@ def compute_activations(
         raise RuntimeError(
             f"Transform '{config.transform_type}' could not be found. Available transforms: {available_transforms}")
 
+    # layers must be computed sequntially, but across a given layer can be done in parallel 
     for idx_layer in range(config.depth):
         if idx_layer == 0:
             activations[:, idx_layer, :] = (input_x @ neurons)

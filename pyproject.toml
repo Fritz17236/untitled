@@ -23,6 +23,7 @@ dependencies = [
     "cvxpy",
     "h5py",
     "ipykernel",
+    "dask[complete]",
 ]
 
 [project.optional-dependencies]
