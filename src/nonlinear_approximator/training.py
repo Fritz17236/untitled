@@ -20,6 +20,7 @@ import os
 import tqdm
 import numpy as np
 import dask 
+import torch
 import dask.array as da
 import dask.multiprocessing as dm
 import torch
@@ -44,7 +45,12 @@ def _regress_neuron(
     Returns:
         NDArray[np.floating]: The regression coefficients that map the neuron's output to target output having shape [DEPTH] x [OUTPUT_DIM]
     """
-    return da.linalg.lstsq(acts, target_outputs)[0]
+    _, depth = acts.shape
+    _, output_dim = target_outputs.shape
+    return torch.linalg.lstsq(
+        torch.Tensor(acts[None, ...].compute()).float(), 
+        torch.Tensor(target_outputs[None, ...].compute()).float()
+    )[0].detach().numpy().reshape((depth, output_dim))
     
 
         
@@ -97,7 +103,7 @@ def compute_decoders(
             f" target output array with shape (NUM_SAMPLES={target_num_samples}, OUTPUT_DIMENSION={output_dim})"
         )
 
-    awaits = []
+    futures = []
     results = []
     for idx_neuron in range(act_width):
         neuron_decoder_task = self._dask_client.submit(
@@ -105,14 +111,14 @@ def compute_decoders(
             activations[:, :, idx_neuron],
             target_output
         )
-        awaits.append(neuron_decoder_task)
+        futures.append(neuron_decoder_task)
     
-    for res in tqdm.tqdm(
-        self._dask_client.gather(awaits),
-        total=len(awaits),
+    for fut in tqdm.tqdm(
+        iterable=futures,
+        total=len(futures),
         desc='Computing Decoders ...'
-    ):
-        results.append(res)
+        ): # type: ignore
+        results.append(fut.result())
     
     decoders = da.stack(
         results,

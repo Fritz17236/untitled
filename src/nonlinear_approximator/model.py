@@ -83,17 +83,16 @@ class NonlinearRegressorModel:
     def predict(self, input_x: NDArray[np.floating], average: bool=True) -> NDArray[np.floating]:
         # TODO: validate input_x shape 
         
-        if not self.config.storage_path: # in memory mode, infer directly 
-            if self.decoders is None:
-                raise RuntimeError("The provided model has not been trained so cannot make a prediction. Call 'fit' first or 'load' first.")
-            
-            outputs = infer(input_x, self._neurons, self.decoders, self.config)
-            
-            if average: 
-                return outputs.mean(axis=2).T
-            else:
-                return outputs
-   
+        if self.decoders is None:
+            raise RuntimeError("The provided model has not been trained so cannot make a prediction. Call 'fit' first or 'load' first.")
+        
+        outputs = infer(input_x, self._neurons, self.decoders, self.config)
+        
+        if average: 
+            return (outputs.mean(axis=2).T).compute()
+        else:
+            return outputs.compute()
+
     def save(self):
         """Save the model state to the path specified in its configuration"""
         ...    

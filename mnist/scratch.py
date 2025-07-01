@@ -9,6 +9,7 @@ import PIL
 from dask.distributed import Client, LocalCluster
 import dask
 import dask.array as da
+import os 
 
 def one_hot_ten(int_label: torch.Tensor) -> NDArray[np.floating]:
     oh = np.zeros((10,))
@@ -28,6 +29,10 @@ if __name__ == '__main__':
     train_data = torchvision.datasets.MNIST(root='./data', download=True, train=True, transform=to_numpy_arr, target_transform=one_hot_ten)
     test_data = torchvision.datasets.MNIST(root='./data', download=True, train=False, transform=to_numpy_arr, target_transform=one_hot_ten)
 
+    os.environ["DASK_DISTRIBUTED__COMM__TIMEOUTS__CONNECT"] = "180s"
+    os.environ["DASK_DISTRIBUTED__COMM__TIMEOUTS__TCP"] = "180s"
+    os.environ["DASK_DISTRIBUTED__DEPLOY__LOST_WORKER"] = "180s"
+
     config = na.params.RegressionParams(
         width=1000,
         depth=50,
@@ -37,6 +42,7 @@ if __name__ == '__main__':
         output_dimension=len(train_data[0][1]),
         batch_size=1000,
     )
+
 
     model = na.model.NonlinearRegressorModel(config)
     imgs_train, labels_train = zip(*train_data)
@@ -51,5 +57,19 @@ if __name__ == '__main__':
     print(f"Loaded training data images with shape {imgs_train.shape}, and labels with shape {labels_train.shape}")
     print(f"Loaded test data images with shape {imgs_test.shape}, and labels with shape {labels_test.shape}")
 
+
     model.fit(imgs_train[:1000, :], labels_train[:1000, :])
 
+    probs_train = model.predict(imgs_train[:1000, :])
+    preds_train = probs_train.argmax(axis=0)
+    acc_train = (sum(
+        preds_train == (labels_train.argmax(axis=1)[:1000])
+        ) / len(preds_train)).compute()
+    
+    plt.hist(preds_train, bins=10)
+    plt.hist(labels_train.argmax(axis=1)[:1000].compute(), bins=10, alpha=0.3)
+    plt.title(f"Histogram of model predicted classifications on training data. Accuracy = {100 *acc_train}%")
+    plt.xlabel("Digit")
+    plt.ylabel(f"Number of classifciations (N={len(preds_train)})")
+    plt.show()
+    

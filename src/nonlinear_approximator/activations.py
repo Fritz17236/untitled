@@ -12,9 +12,14 @@ __email__ = "fritz17236@hotmail.com"
 
 
 from enum import Enum
+import logging
+import time
 import numpy as np
 from numpy.typing import NDArray
 import dask.array as da     
+
+
+log = logging.getLogger(__name__)
 
 def logistic(x: NDArray[np.floating], params: LogisticParams) -> NDArray[np.floating]:
     """Apply the logistic map either to a scalar or vectorized array.
@@ -89,11 +94,13 @@ def compute_activations(
     Returns:
         NDArray[np.floating]: Neuron activations having shape [NUM_SAMPLES] x [DEPTH] x [WIDTH]
     """
+    start_time = time.time()
+    
     # neurons have shape [num_dims, width]
     # input has shape [num_dims, num_samples_input]
     n_dims_neuron, width = neurons.shape
     num_samples, n_dims_input= input_x.shape
-
+    log.info("Computing Activations")
     # neurons input dimension must match input dimension
     if not n_dims_neuron == n_dims_input:
         raise ValueError(
@@ -127,4 +134,5 @@ def compute_activations(
             activations[ :,idx_layer, :] = transform(
                 activations[ :,idx_layer - 1, :], config.transform_params
             )
+    log.info(f"Activations computed in {time.time() - start_time} seconds.")
     return activations
