@@ -12,10 +12,9 @@ __email__ = "fritz17236@hotmail.com"
 
 
 from enum import Enum
-from functools import partial
 import numpy as np
 from numpy.typing import NDArray
-
+import dask.array as da     
 
 def logistic(x: NDArray[np.floating], params: LogisticParams) -> NDArray[np.floating]:
     """Apply the logistic map either to a scalar or vectorized array.
@@ -61,9 +60,12 @@ def tent(x: NDArray[np.floating], params: TentParams) -> NDArray[np.floating]:
     Returns:
         float | NDArray[np.floating]: The mapped value or array, matching the type of data input.
     """
-    out = params.mu * (1 + x)
-    out[x > 0] = params.mu * (1 - x[x > 0])
-    return out
+    return da.where(
+        x > 0,
+         params.mu * (1 - x),
+         params.mu * (1 + x),
+    )
+
 
 
 class TransformType(Enum):
@@ -105,7 +107,7 @@ def compute_activations(
         )
 
 
-    activations = np.zeros((num_samples, config.depth, width))
+    activations = da.zeros((num_samples, config.depth, width))
 
     available_transforms = {
         TransformType.GAUSS.value: gauss,

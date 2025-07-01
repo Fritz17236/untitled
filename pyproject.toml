@@ -23,6 +23,7 @@ dependencies = [
     "cvxpy",
     "h5py",
     "ipykernel",
+    "dask[complete]"
 ]
 
 [project.optional-dependencies]
@@ -31,3 +32,6 @@ dev = [
     "autoflake",
     "pytest",
 ]
+
+[tool.ruff]
+exclude = ["*.ipynb"]

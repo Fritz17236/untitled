@@ -1,7 +1,5 @@
 import pytest
 import h5py 
-from pathlib import Path 
-from tempfile import NamedTemporaryFile
 import numpy as np 
 import nonlinear_approximator as na
 
@@ -19,7 +17,6 @@ def dummy_config(tmp_path):
         transform_type=na.activations.TransformType.TENT,
         transform_params=na.params.TentParams(mu=1.99),
         output_dimension=2,
-        neuron_chunk_size=100,
         storage_path=tmp_path.joinpath('test_storage.hdf5'),
         batch_size=1000, 
     )
