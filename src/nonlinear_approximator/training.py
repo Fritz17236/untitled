@@ -85,7 +85,7 @@ def compute_decoders(
     target_num_samples = target_output.shape[SAMPLE_DIM]
     
     if not isinstance(target_output, da.Array):
-        target_output = da.asarray(target_output)
+        target_output = da.from_array(target_output)
     
     if not act_depth == config.depth:
         raise ValueError(

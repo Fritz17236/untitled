@@ -2,9 +2,12 @@
 model.py: Top-level model for orchestrating instantiation, training, and inference logic.
 """
 from __future__ import annotations
+
+import dask.diagnostics.progress
 __author__ = "Chris Fritz"
 __email__ = "fritz17236@hotmail.com"
 
+import dask.diagnostics
 import dask.distributed
 import numpy as np
 import dask.array as da
@@ -12,8 +15,8 @@ import dask
 from functools import cached_property
 from numpy.typing import NDArray
 from .params import RegressionParams
-from .activations import compute_activations
-from .training import compute_decoders
+from .activations import compute_activations, compute_activation
+from .training import compute_decoders, _regress_neuron
 from .inference import infer
 
 
@@ -22,6 +25,9 @@ from .inference import infer
     # redo fit method to perform and store qr factorization 
     # redo predict method to load qr factorization 
     
+def _fit_neuron(cfg, neuron,  input_x: NDArray[np.floating], output_y: NDArray[np.floating]):
+    acts = compute_activation(neuron, input_x, cfg )
+    return _regress_neuron(acts, output_y)
 
 class NonlinearRegressorModel:
     CONFIG_STRPATH = "configuration"
@@ -34,10 +40,12 @@ class NonlinearRegressorModel:
     def __init__(self, config: RegressionParams) -> None:
         self.config = config 
 
-        self.decoders = None
         self._dask_cluster = dask.distributed.LocalCluster()
-        self._dask_client = dask.distributed.Client(self._dask_cluster)
+        self._dask_client = self._dask_cluster.get_client()
         self._neurons = self._generate_neuron_directions()
+        self.decoders = None
+        self._pbar = dask.diagnostics.progress.ProgressBar()
+        self._pbar.register()
 
     def fit(self, input_x: NDArray[np.floating], output_y: NDArray[np.floating]) -> None:
         """Fit the model to map the provided input to the provided output; TODO: report the resulting residual.
@@ -55,6 +63,7 @@ class NonlinearRegressorModel:
         
         if not isinstance(input_x, da.Array):
             input_x = da.asarray(input_x)
+            
         if input_x.ndim != 2:
             raise ValueError(f"The provided input should have 2 dimensions (NUM_SAMPLES x NUM_INPUT_DIMS), but had ndims={input_x.ndim} with shape {input_x.shape}")
         
@@ -70,16 +79,30 @@ class NonlinearRegressorModel:
         if input_x.shape[SAMPLE_DIM] != output_y.shape[SAMPLE_DIM]: 
             raise ValueError(f"Mismatch between sample dimension ({SAMPLE_DIM}) of input data ({input_x.shape[SAMPLE_DIM]}, and target output ({output_y.shape[SAMPLE_DIM]}))")
        
-        activations_train = compute_activations(
-            self._neurons,
-            input_x=input_x,
-            config=self.config
-        )  
+        results = []
+        for idx_neuron in range(self.config.width):
+            results.append(
+                self._dask_client.submit(
+                    _fit_neuron,
+                    self.config,
+                    self._neurons[:, idx_neuron], 
+                    input_x,
+                    output_y
+                )
+            )
+        
+        self.decoders = self._dask_client.gather(results) 
+        # activations_train = compute_activations(
+        #     self._neurons,
+        #     input_x=input_x,
+        #     config=self.config
+        # )  
     
-        self.decoders = compute_decoders(self, activations_train, output_y, self.config)   
+        # self.decoders = compute_decoders(self, activations_train, output_y, self.config)   
         
                         
-                  
+
+
     def predict(self, input_x: NDArray[np.floating], average: bool=True) -> NDArray[np.floating]:
         # TODO: validate input_x shape 
         
@@ -89,9 +112,9 @@ class NonlinearRegressorModel:
         outputs = infer(input_x, self._neurons, self.decoders, self.config)
         
         if average: 
-            return (outputs.mean(axis=2).T).compute()
+            return (outputs.mean(axis=2).T)
         else:
-            return outputs.compute()
+            return outputs
 
     def save(self):
         """Save the model state to the path specified in its configuration"""

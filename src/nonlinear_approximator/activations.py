@@ -136,3 +136,61 @@ def compute_activations(
             )
     log.info(f"Activations computed in {time.time() - start_time} seconds.")
     return activations
+
+def compute_activation(
+    neuron: NDArray[np.floating],
+    input_x: NDArray[np.floating],
+    config: RegressionParams,
+) -> NDArray[np.floating]:
+    """Pass the provided input through the provided neurons and return the activations of those neurons.
+
+    Args:
+        neuron (NDArray[np.floating]): Neuron to compute activations for with shape [INPUT_DIMENSION] 
+        input_x (NDArray[np.floating]): Input to compute activation for having shape [NUM_SAMPLES] x [INPUT_DIMENSION]
+        config (RegressionParams): Regression configuration parameters
+
+    Returns:
+        NDArray[np.floating]: Neuron activations having shape [NUM_SAMPLES] x [DEPTH] 
+    """
+    start_time = time.time()
+    
+    # neurons have shape [num_dims ]
+    # input has shape [num_dims, num_samples_input]
+    n_dims_neuron = len(neuron)
+    num_samples, n_dims_input= input_x.shape
+    log.info("Computing Activation")
+    # neurons input dimension must match input dimension
+    if not n_dims_neuron == n_dims_input:
+        raise ValueError(
+            f"Mismatch between neuron array with shape (INPUT_DIMENSION={n_dims_neuron}), and input_x with shape (NUM_SAMPLES={num_samples}, INPUT_DIMENSION={n_dims_input})."
+        )
+
+    # input dimensions must match that contained in the config
+    if not n_dims_neuron == config.input_dimension:
+        raise ValueError(
+             f"Mismatch between neuron array with shape (INPUT_DIMENSION={n_dims_neuron}, and input dimension set in config={config.input_dimension}"
+        )
+
+
+    activation = da.zeros((num_samples, config.depth))
+
+    available_transforms = {
+        TransformType.GAUSS.value: gauss,
+        TransformType.LOGISTIC.value: logistic,
+        TransformType.TENT.value: tent, 
+    }
+    transform: callable = available_transforms.get(config.transform_type.value)
+    
+    if not transform:
+        raise RuntimeError(
+            f"Transform '{config.transform_type}' could not be found. Available transforms: {available_transforms}")
+
+    for idx_layer in range(config.depth):
+        if idx_layer == 0:
+            activation[:, idx_layer] = (input_x @ neuron)
+        else:
+            activation[ :,idx_layer] = transform(
+                activation[ :,idx_layer - 1], config.transform_params
+            )
+    log.info(f"Activations computed in {time.time() - start_time} seconds.")
+    return activation
