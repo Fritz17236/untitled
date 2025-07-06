@@ -23,7 +23,9 @@ dependencies = [
     "cvxpy",
     "h5py",
     "ipykernel",
-    "dask[complete]"
+    "dask[complete]",
+    "graphviz",
+    "zarr",
 ]
 
 [project.optional-dependencies]

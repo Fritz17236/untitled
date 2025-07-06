@@ -32,7 +32,7 @@ class RegressorType(Enum):
     HUBER = None
 
 # TODO: gradient-based option if we cannot fit in memory or have existing decoder array to use  
-# @dask.delayed
+@dask.delayed
 def _regress_neuron(
     acts: NDArray[np.floating], target_outputs: NDArray[np.floating]
 ) -> NDArray[np.floating]:
@@ -48,8 +48,8 @@ def _regress_neuron(
     _, depth = acts.shape
     _, output_dim = target_outputs.shape
     return torch.linalg.lstsq(
-        torch.Tensor(acts[None, ...].compute()).float(), 
-        torch.Tensor(target_outputs[None, ...].compute()).float()
+        torch.Tensor(acts[None, ...]).float(), 
+        torch.Tensor(target_outputs[None, ...]).float()
     )[0].detach().numpy().reshape((depth, output_dim))
     
 

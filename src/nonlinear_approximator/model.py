@@ -29,6 +29,14 @@ def _fit_neuron(cfg, neuron,  input_x: NDArray[np.floating], output_y: NDArray[n
     acts = compute_activation(neuron, input_x, cfg )
     return _regress_neuron(acts, output_y)
 
+def _infer_neuron(
+    input_x, neuron, decoder, cfg 
+):
+    acts = compute_activation(neuron, input_x, cfg )
+    return acts @ decoder 
+
+    
+
 class NonlinearRegressorModel:
     CONFIG_STRPATH = "configuration"
     DECODER_STRPATH = "decoders"
@@ -91,17 +99,8 @@ class NonlinearRegressorModel:
                 )
             )
         
-        self.decoders = self._dask_client.gather(results) 
-        # activations_train = compute_activations(
-        #     self._neurons,
-        #     input_x=input_x,
-        #     config=self.config
-        # )  
-    
-        # self.decoders = compute_decoders(self, activations_train, output_y, self.config)   
-        
+        self.decoders = dask.compute(self._dask_client.gather(results))[0] # type: ignore
                         
-
 
     def predict(self, input_x: NDArray[np.floating], average: bool=True) -> NDArray[np.floating]:
         # TODO: validate input_x shape 
@@ -109,16 +108,28 @@ class NonlinearRegressorModel:
         if self.decoders is None:
             raise RuntimeError("The provided model has not been trained so cannot make a prediction. Call 'fit' first or 'load' first.")
         
-        outputs = infer(input_x, self._neurons, self.decoders, self.config)
+        results = []
+        for idx_neuron in range(self.config.width):
+            results.append(
+                self._dask_client.submit(
+                    _infer_neuron,
+                    input_x,
+                    self._neurons[:, idx_neuron],
+                    self.decoders[idx_neuron],
+                    self.config,
+                )
+            )
+        outputs =  dask.compute(self._dask_client.gather(results))[0] # type: ignore
         
         if average: 
-            return (outputs.mean(axis=2).T)
+            return da.asarray(outputs).mean(axis=0) # average along the axis we just gathered (width neurons )
         else:
             return outputs
 
     def save(self):
         """Save the model state to the path specified in its configuration"""
         ...    
+    
     def load(self):
         """Load the model state from the path specified in its configuration."""
         ...
@@ -144,4 +155,4 @@ class NonlinearRegressorModel:
         """
         neurons = da.random.normal(loc=0, scale=1, size=(self.config.input_dimension, self.config.width))
         neurons = neurons / da.linalg.norm(neurons, axis=0)
-        return da.array(neurons)
+        return neurons
