@@ -26,6 +26,7 @@ dependencies = [
     "dask[complete]",
     "graphviz",
     "zarr",
+    "ipympl", 
 ]
 
 [project.optional-dependencies]
