@@ -35,8 +35,6 @@ def _infer_neuron(
     acts = compute_activation(neuron, input_x, cfg )
     return acts @ decoder 
 
-    
-
 class NonlinearRegressorModel:
     CONFIG_STRPATH = "configuration"
     DECODER_STRPATH = "decoders"
