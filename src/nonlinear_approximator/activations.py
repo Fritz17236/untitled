@@ -65,11 +65,14 @@ def tent(x: NDArray[np.floating], params: TentParams) -> NDArray[np.floating]:
     out[x > 0] = params.mu * (1 - x[x > 0])
     return out
 
+def sigmoid(x, nullParams):
+    return 1 / (1 + np.exp(-x))
 
 class TransformType(Enum):
     LOGISTIC = partial(logistic)
     GAUSS = partial(gauss)
     TENT = partial(tent)
+    SIGMOID = partial(sigmoid)
 
 
 def compute_activations(
@@ -127,3 +130,19 @@ def compute_activations(
                 activations[idx_layer - 1, :, :], config.transform_params
             )
     return activations
+
+def neuron_activation_curve(inputs: NDArray[np.floating], layer_number: int,  activation_config: RegressionParams) -> NDArray[np.floating]:
+    transform = activation_config.transform_type.value
+    if not transform:
+        raise RuntimeError(
+            f"Transform '{activation_config.transform_type.name}' could not be found."
+        )
+        
+    outputs = inputs
+    for _ in range(layer_number):
+        outputs = transform(outputs, activation_config.transform_params)
+    return outputs
+    
+        
+    ...
+    

@@ -62,6 +62,9 @@ class TentParams(NonlinearTransformationParams, frozen=True):
     """
 
     mu: float
+    
+class SigmoidParams(NonlinearTransformationParams, frozen=True):
+    ...
 
 
 class RegressionParams(BaseModel, frozen=True):
