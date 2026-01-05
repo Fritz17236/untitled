@@ -63,7 +63,7 @@ def tent(x: NDArray[np.floating], params: TentParams) -> NDArray[np.floating]:
     """
     out = params.mu * (1 + x)
     out[x > 0] = params.mu * (1 - x[x > 0])
-    return out
+    return params.mu * np.minimum(x, 1 - x)
 
 def sigmoid(x, nullParams):
     return 1 / (1 + np.exp(-x))
@@ -124,7 +124,7 @@ def compute_activations(
 
     for idx_layer in range(config.depth):
         if idx_layer == 0:
-            activations[idx_layer, :, :] = neurons.T @ input_x
+            activations[idx_layer, :, :] = (neurons.T @ input_x + 1)/2
         else:
             activations[idx_layer, :, :] = transform(
                 activations[idx_layer - 1, :, :], config.transform_params
