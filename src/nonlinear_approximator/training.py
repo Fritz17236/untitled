@@ -37,6 +37,7 @@ def _regress_neuron(
     Returns:
         NDArray[np.floating]: The regression coefficients that map the neuron's output to target output having shape [DEPTH] x [OUTPUT_DIM]
     """
+    print(f"{acts.shape=}; {target_outputs.shape=}")
     return np.linalg.lstsq(acts, target_outputs, rcond=None)[0]
 
 
