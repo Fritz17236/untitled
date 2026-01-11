@@ -8,11 +8,12 @@ authors = [
     {name = "Chris Fritz", email = "fritz17236@htomail.com"},
 ]
 description = "Untitled"
-requires-python = ">=3.11"
+requires-python = ">=3.11, <3.12"
 version = "0.0.1"
 
 dependencies = [
     "numpy",
+    "numba",
     "matplotlib",
     "scipy",
     "scikit-learn",
