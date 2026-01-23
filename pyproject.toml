@@ -15,17 +15,19 @@ dependencies = [
     "numpy",
     "numba",
     "matplotlib",
+    "jupyter",
     "scipy",
     "scikit-learn",
     "pydantic",
+    "cupy",
     "tqdm",
     "dask",
     "dask-ml",
     "skorch",
-    "cvxpy",
     "dask[distributed]",
-    "bokeh>=3.1.0",
     "torchvision",
+    "torch",
+    "bokeh>=3.8.2",
 ]
 
 [project.optional-dependencies]
