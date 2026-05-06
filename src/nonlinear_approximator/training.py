@@ -265,6 +265,7 @@ class BlockLowRankRLS:
         dtype=torch.float32,
         max_rank: int = 256,
         adapt_rank: bool = True,
+        fit_intercept: bool = True,
     ):
         self.d = dim_in
         self.m = dim_out
@@ -273,15 +274,20 @@ class BlockLowRankRLS:
         self.lam = lam
         self.device = device
         self.adapt_rank = adapt_rank
+        self.fit_intercept = fit_intercept
+
+        # augmented dimension, whether or not we're fitting intercept (add 1 if so)
+        self.dim_aug = dim_in + 1 if self.fit_intercept else dim_in
 
         # weights
-        self.W = torch.zeros(dim_in, dim_out, device=device, dtype=dtype)
+        self.W = torch.zeros(self.dim_aug, dim_out, device=device, dtype=dtype)
 
         # diagonal covariance
-        self.D = torch.full((dim_in,), delta, device=device, dtype=dtype)
+    
+        self.D = torch.full((self.dim_aug,), delta, device=device, dtype=dtype)
 
         # low-rank factor
-        self.U = torch.zeros(dim_in, rank, device=device, dtype=dtype)
+        self.U = torch.zeros(self.dim_aug, rank, device=device, dtype=dtype)
 
     def _apply_P(self, A: Tensor):
         """
@@ -297,6 +303,7 @@ class BlockLowRankRLS:
         A: (batch, d)
         B: (batch, m)
         """
+        A = self._augment(A)
         # ---- Apply covariance ----
         PA = self._apply_P(A)              # (b, d)
 
@@ -304,9 +311,6 @@ class BlockLowRankRLS:
         b = A.shape[0]
 
         S = self.lam * torch.eye(b, device=self.device) + A @ PA.T
-
-        # jitter (critical)
-
 
         try:
             # preferred path
@@ -356,16 +360,35 @@ class BlockLowRankRLS:
         k = min(self.max_rank, self.U.shape[1])
         self.U = Q[:, idx[:k]]
 
+    def _augment(self, A):
+        if not self.fit_intercept:
+            return A
+
+        ones = torch.ones((A.shape[0], 1), device=A.device, dtype=A.dtype)
+        return torch.cat([A, ones], dim=1)
+
     def fit(self, A: Tensor, B: Tensor, batch_size: int = 128):
         n = A.shape[0]
 
-        for i in range(0, n, batch_size):
+        for i in tqdm.tqdm(range(0, n, batch_size), desc='Fitting batch', total=n//batch_size):
             Ab = A[i:i+batch_size].to(self.device)
             Bb = B[i:i+batch_size].to(self.device)
-
+            
+            if Ab.ndim == 1:
+                Ab = Ab.unsqueeze(-1)
+            if Bb.ndim == 1:
+                Bb = Bb.unsqueeze(-1)
             self.update_block(Ab, Bb)
 
         return self.W
 
     def predict(self, A: Tensor):
-        return A.to(self.device) @ self.W
+        A = A.to(self.device)
+
+        if A.ndim == 1:
+            A = A.unsqueeze(0)
+
+        A = self._augment(A)
+        out = A @ self.W
+
+        return out.squeeze(0) if out.shape[0] == 1 else out
